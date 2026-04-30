@@ -1,0 +1,42 @@
+# Sample CLI Commands for Batch Execution
+# This file demonstrates the CLI command syntax for the Playlist application
+# Comments start with # and are ignored when running in batch mode
+
+# Examples with quoted parameters
+ADD "Midnight City" "M83" "Synthwave" 95
+ADD "Run" "ANWOLNation" "Electronic" 128
+ADD "Blinding Lights" "The Weeknd" "Synthwave" 103
+ADD "Trance Formation" "Deadmau5" "Trance" 128
+ADD "Peaceful Piano" "Ludovico Einaudi" "Classical" 70
+ADD "Gym Workout Mix" "DJ Pump" "Dance" 165
+
+# Display library
+LIST
+
+# Rebuild mood queues
+REBUILD
+
+# Show each mood queue
+QUEUE Relaxar
+QUEUE Focar
+QUEUE Animar
+QUEUE Treinar
+
+# Play some tracks
+PLAY
+
+# Show history
+HISTORY
+
+# Get statistics
+STATS
+
+# Search for a track
+SEARCH "Blinding Lights"
+SEARCH 2
+
+# Remove a track (optional - uncomment to test)
+# REMOVE 5
+
+# Show updated stats after changes
+# STATS
