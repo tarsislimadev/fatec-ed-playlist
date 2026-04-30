@@ -6,18 +6,24 @@ from typing import Iterator, Optional
 
 """Sistema de playlist em Python com lista encadeada e filas FIFO.
 
-O objetivo deste arquivo e concentrar a base funcional do projeto em um unico
-ponto de entrada, deixando o comportamento claro para quem for continuar as
-entregas seguintes:
+O arquivo concentra as estruturas pedidas no enunciado e o menu final do
+projeto:
 
 - `Musica` modela cada faixa da biblioteca.
 - `Biblioteca` guarda as musicas em uma lista encadeada simples.
-- `Fila` implementa uma fila FIFO encadeada, reutilizavel nas proximas etapas.
-- `executar_menu_basico` oferece uma interface de terminal para testar a base.
-
-As entregas futuras vao reutilizar estas estruturas para adicionar filas de
-humor, historico de reproducoes e o menu completo do sistema.
+- `Fila` implementa uma fila FIFO encadeada, reutilizavel para humor e
+  historico.
+- `SistemaPlaylist` orquestra biblioteca, filas de humor, historico,
+  reproducao e estatisticas.
 """
+
+LIMITES_HUMOR = (
+	("Relaxar", 80),
+	("Focar", 120),
+	("Animar", 160),
+	("Treinar", sys.maxsize),
+)
+
 
 @dataclass(slots=True)
 class Musica:
@@ -30,7 +36,6 @@ class Musica:
 	bpm: int
 
 	def __str__(self) -> str:
-		# O texto padronizado ajuda na exibicao do terminal e nos testes.
 		return f"[{self.id}] {self.titulo} - {self.artista} ({self.genero}, {self.bpm} BPM)"
 
 
@@ -43,24 +48,25 @@ class NodoLista:
 		self.musica = musica
 		self.proximo = proximo
 
+
 class Biblioteca:
 	"""Lista encadeada simples com insercao, busca, remocao e iteracao."""
 
 	def __init__(self) -> None:
-		# Guardar inicio e fim evita percorrer a lista inteira ao inserir no final.
 		self._primeiro: Optional[NodoLista] = None
 		self._ultimo: Optional[NodoLista] = None
 		self._tamanho = 0
-		# O id cresce de forma sequencial e nunca e reutilizado apos remocoes.
 		self._proximo_id = 1
 
 	@property
 	def tamanho(self) -> int:
-		"""Retorna quantas musicas existem na biblioteca."""
 		return self._tamanho
 
+	@property
+	def proximo_id(self) -> int:
+		return self._proximo_id
+
 	def adicionar_musica(self, titulo: str, artista: str, genero: str, bpm: int) -> Musica:
-		"""Valida os dados e insere uma nova musica no final da lista."""
 		if not titulo.strip():
 			raise ValueError("Titulo nao pode ser vazio.")
 		if not artista.strip():
@@ -81,7 +87,6 @@ class Biblioteca:
 		)
 		nodo = NodoLista(musica)
 
-		# Se a lista estiver vazia, o novo nodo vira o primeiro e o ultimo.
 		if self._primeiro is None:
 			self._primeiro = nodo
 			self._ultimo = nodo
@@ -95,7 +100,6 @@ class Biblioteca:
 		return musica
 
 	def buscar_por_id(self, musica_id: int) -> Optional[Musica]:
-		"""Percorre a lista ate encontrar a musica com o id informado."""
 		nodo_atual = self._primeiro
 		while nodo_atual is not None:
 			if nodo_atual.musica.id == musica_id:
@@ -104,7 +108,6 @@ class Biblioteca:
 		return None
 
 	def buscar_por_titulo(self, titulo: str) -> Optional[Musica]:
-		"""Busca case-insensitive por titulo para facilitar o uso no terminal."""
 		titulo_normalizado = titulo.strip().casefold()
 		nodo_atual = self._primeiro
 		while nodo_atual is not None:
@@ -114,7 +117,6 @@ class Biblioteca:
 		return None
 
 	def remover_por_id(self, musica_id: int) -> Optional[Musica]:
-		"""Remove a musica correspondente ao id informado e ajusta os ponteiros."""
 		nodo_anterior: Optional[NodoLista] = None
 		nodo_atual = self._primeiro
 
@@ -137,11 +139,11 @@ class Biblioteca:
 		return None
 
 	def iterar(self) -> Iterator[Musica]:
-		"""Gera as musicas da biblioteca sem converter a estrutura para lista."""
 		nodo_atual = self._primeiro
 		while nodo_atual is not None:
 			yield nodo_atual.musica
 			nodo_atual = nodo_atual.proximo
+
 
 class NodoFila:
 	"""Nodo da fila encadeada usada pela estrutura FIFO."""
@@ -152,26 +154,23 @@ class NodoFila:
 		self.musica = musica
 		self.proximo = proximo
 
+
 class Fila:
-	"""Fila FIFO com nos encadeados e operacoes basicas de enfileirar/desenfileirar."""
+	"""Fila FIFO com nos encadeados e operacoes basicas."""
 
 	def __init__(self) -> None:
-		# Os dois extremos permitem operar a fila em tempo constante.
 		self._frente: Optional[NodoFila] = None
 		self._tras: Optional[NodoFila] = None
 		self._tamanho = 0
 
 	@property
 	def tamanho(self) -> int:
-		"""Retorna o numero de elementos presentes na fila."""
 		return self._tamanho
 
 	def esta_vazia(self) -> bool:
-		"""Indica se a fila nao tem nenhum elemento."""
 		return self._tamanho == 0
 
 	def enfileirar(self, musica: Musica) -> None:
-		"""Insere uma musica no final da fila."""
 		nodo = NodoFila(musica)
 		if self._frente is None:
 			self._frente = nodo
@@ -183,7 +182,6 @@ class Fila:
 		self._tamanho += 1
 
 	def desenfileirar(self) -> Optional[Musica]:
-		"""Remove e devolve a musica que esta na frente da fila."""
 		if self._frente is None:
 			return None
 
@@ -195,59 +193,142 @@ class Fila:
 		return nodo.musica
 
 	def espiar(self) -> Optional[Musica]:
-		"""Consulta a primeira musica sem removela da fila."""
 		if self._frente is None:
 			return None
 		return self._frente.musica
 
 	def limpar(self) -> None:
-		"""Esvazia a fila inteira."""
 		self._frente = None
 		self._tras = None
 		self._tamanho = 0
 
 	def iterar(self) -> Iterator[Musica]:
-		"""Percorre a fila sem alterar sua ordem ou seu conteudo."""
 		nodo_atual = self._frente
 		while nodo_atual is not None:
 			yield nodo_atual.musica
 			nodo_atual = nodo_atual.proximo
 
+
+def classificar_humor_por_bpm(bpm: int) -> str:
+	"""Classifica uma musica em um dos humores do projeto."""
+	if bpm <= 80:
+		return "Relaxar"
+	if bpm <= 120:
+		return "Focar"
+	if bpm <= 160:
+		return "Animar"
+	return "Treinar"
+
+
+class SistemaPlaylist:
+	"""Orquestra biblioteca, filas de humor, historico e estatisticas."""
+
+	def __init__(self) -> None:
+		self.biblioteca = Biblioteca()
+		self.filas_humor: dict[str, Fila] = {humor: Fila() for humor, _ in LIMITES_HUMOR}
+		self.historico = Fila()
+
+	def adicionar_musica(self, titulo: str, artista: str, genero: str, bpm: int) -> Musica:
+		musica = self.biblioteca.adicionar_musica(titulo, artista, genero, bpm)
+		self.reconstruir_filas_humor()
+		return musica
+
+	def remover_musica(self, musica_id: int) -> Optional[Musica]:
+		musica = self.biblioteca.remover_por_id(musica_id)
+		if musica is not None:
+			self.reconstruir_filas_humor()
+		return musica
+
+	def reconstruir_filas_humor(self) -> None:
+		for fila in self.filas_humor.values():
+			fila.limpar()
+
+		for musica in self.biblioteca.iterar():
+			humor = classificar_humor_por_bpm(musica.bpm)
+			self.filas_humor[humor].enfileirar(musica)
+
+	def reproduzir_proxima(self, humor: str) -> Optional[Musica]:
+		fila = self.filas_humor[humor]
+		musica = fila.desenfileirar()
+		if musica is not None:
+			self.historico.enfileirar(musica)
+		return musica
+
+	def obter_fila(self, humor: str) -> Fila:
+		return self.filas_humor[humor]
+
+	def mostrar_estatisticas(self) -> None:
+		print("\n=== Estatisticas ===")
+		print(f"Total na biblioteca: {self.biblioteca.tamanho}")
+		for humor, _ in LIMITES_HUMOR:
+			print(f"Fila {humor}: {self.filas_humor[humor].tamanho}")
+		print(f"Historico: {self.historico.tamanho}")
+		print(f"Proximo ID: {self.biblioteca.proximo_id}")
+
+
 def _ler_texto(rotulo: str) -> str:
-	"""Ler um texto nao vazio e padronizar a validacao de entrada."""
 	valor = input(rotulo).strip()
 	if not valor:
 		raise ValueError("Entrada vazia.")
 	return valor
 
+
 def _ler_inteiro(rotulo: str) -> int:
-	"""Ler texto do usuario e converter para inteiro."""
 	valor_texto = _ler_texto(rotulo)
 	return int(valor_texto)
 
-def _exibir_musica(musica: Optional[Musica]) -> None:
-	"""Mostrar uma musica ou informar que a busca nao encontrou nada."""
+
+def _imprimir_musica(musica: Optional[Musica], mensagem_vazio: str = "Nenhuma musica encontrada.") -> None:
 	if musica is None:
-		print("Nenhuma musica encontrada.")
+		print(mensagem_vazio)
 		return
 	print(musica)
 
-def executar_menu_basico() -> None:
-	"""Menu textual usado para testar a base da biblioteca nesta etapa.
 
-	Este menu nao inclui ainda as entregas de filas de humor, historico e
-	estatisticas; ele existe para validar as operacoes essenciais da biblioteca.
-	"""
-	biblioteca = Biblioteca()
+def _imprimir_iteravel(titulo: str, elementos: Iterator[Musica]) -> None:
+	print(titulo)
+	tem_elementos = False
+	for musica in elementos:
+		print(musica)
+		tem_elementos = True
+	if not tem_elementos:
+		print("(vazio)")
+
+
+def _selecionar_humor() -> Optional[str]:
+	print("\nSelecione o humor:")
+	for indice, (humor, _) in enumerate(LIMITES_HUMOR, start=1):
+		print(f"{indice} - {humor}")
+	print("5 - Todas")
+	print("0 - Cancelar")
+
+	opcao = _ler_texto("Opcao: ")
+	mapa = {str(indice): humor for indice, (humor, _) in enumerate(LIMITES_HUMOR, start=1)}
+	if opcao == "5":
+		return None
+	if opcao == "0":
+		return ""
+	if opcao not in mapa:
+		raise ValueError("Humor invalido.")
+	return mapa[opcao]
+
+
+def executar_menu() -> None:
+	"""Menu principal com biblioteca, filas de humor, historico e estatisticas."""
+	sistema = SistemaPlaylist()
 
 	while True:
-		# O menu eh reimpresso a cada iteracao para manter a interacao simples.
 		print("\n=== Reprodutor de musicas ===")
 		print("1 - Adicionar musica")
 		print("2 - Remover musica por ID")
 		print("3 - Buscar musica por ID")
 		print("4 - Buscar musica por titulo")
 		print("5 - Listar biblioteca")
+		print("6 - Montar filas de humor")
+		print("7 - Exibir filas de humor")
+		print("8 - Reproduzir proxima musica")
+		print("9 - Exibir historico")
+		print("10 - Mostrar estatisticas")
 		print("0 - Sair")
 
 		try:
@@ -261,12 +342,11 @@ def executar_menu_basico() -> None:
 
 		if opcao == "1":
 			try:
-				# Cadastro completo de uma musica na biblioteca.
 				titulo = _ler_texto("Titulo: ")
 				artista = _ler_texto("Artista: ")
 				genero = _ler_texto("Genero: ")
 				bpm = _ler_inteiro("BPM: ")
-				musica = biblioteca.adicionar_musica(titulo, artista, genero, bpm)
+				musica = sistema.adicionar_musica(titulo, artista, genero, bpm)
 				print("Musica adicionada:")
 				print(musica)
 			except ValueError as erro:
@@ -277,9 +357,8 @@ def executar_menu_basico() -> None:
 
 		elif opcao == "2":
 			try:
-				# Remocao direta por id para exercitar a exclusao da lista.
 				musica_id = _ler_inteiro("ID: ")
-				musica = biblioteca.remover_por_id(musica_id)
+				musica = sistema.remover_musica(musica_id)
 				if musica is None:
 					print("Musica nao encontrada.")
 				else:
@@ -293,9 +372,8 @@ def executar_menu_basico() -> None:
 
 		elif opcao == "3":
 			try:
-				# Busca por identificador para validar acesso direto ao nodo.
 				musica_id = _ler_inteiro("ID: ")
-				_exibir_musica(biblioteca.buscar_por_id(musica_id))
+				_imprimir_musica(sistema.biblioteca.buscar_por_id(musica_id))
 			except ValueError:
 				print("ID invalido.")
 			except EOFError:
@@ -304,9 +382,8 @@ def executar_menu_basico() -> None:
 
 		elif opcao == "4":
 			try:
-				# Busca textual, normalizada para nao depender de maiusculas/minusculas.
 				titulo = _ler_texto("Titulo: ")
-				_exibir_musica(biblioteca.buscar_por_titulo(titulo))
+				_imprimir_musica(sistema.biblioteca.buscar_por_titulo(titulo))
 			except ValueError:
 				print("Titulo invalido.")
 			except EOFError:
@@ -314,12 +391,59 @@ def executar_menu_basico() -> None:
 				return
 
 		elif opcao == "5":
-			# A listagem percorre a estrutura encadeada sem usar listas prontas.
-			if biblioteca.tamanho == 0:
+			if sistema.biblioteca.tamanho == 0:
 				print("Biblioteca vazia.")
 			else:
-				for musica in biblioteca.iterar():
+				for musica in sistema.biblioteca.iterar():
 					print(musica)
+
+		elif opcao == "6":
+			sistema.reconstruir_filas_humor()
+			print("Filas de humor montadas com sucesso.")
+
+		elif opcao == "7":
+			try:
+				humor = _selecionar_humor()
+			except ValueError as erro:
+				print(f"Erro: {erro}")
+				continue
+			except EOFError:
+				print("\nEntrada encerrada.")
+				return
+
+			if humor is None:
+				for nome_humor, _ in LIMITES_HUMOR:
+					_imprimir_iteravel(f"\nFila {nome_humor}:", sistema.obter_fila(nome_humor).iterar())
+			elif humor:
+				_imprimir_iteravel(f"\nFila {humor}:", sistema.obter_fila(humor).iterar())
+
+		elif opcao == "8":
+			try:
+				humor = _selecionar_humor()
+			except ValueError as erro:
+				print(f"Erro: {erro}")
+				continue
+			except EOFError:
+				print("\nEntrada encerrada.")
+				return
+
+			if humor is None:
+				print("Escolha um humor especifico para reproduzir.")
+			elif humor == "":
+				print("Operacao cancelada.")
+			else:
+				musica = sistema.reproduzir_proxima(humor)
+				if musica is None:
+					print(f"Fila {humor} vazia.")
+				else:
+					print("Reproduzindo:")
+					print(musica)
+
+		elif opcao == "9":
+			_imprimir_iteravel("\nHistorico:", sistema.historico.iterar())
+
+		elif opcao == "10":
+			sistema.mostrar_estatisticas()
 
 		elif opcao == "0":
 			print("Encerrando.")
@@ -328,24 +452,40 @@ def executar_menu_basico() -> None:
 		else:
 			print("Opcao invalida.")
 
-def main() -> None:
-	"""Ponto de entrada do programa.
 
-	O argumento `--demo` existe como atalho para demonstrar a biblioteca sem
-	passar pelo menu interativo.
-	"""
+def executar_demo() -> None:
+	"""Executa um fluxo curto para validar a solucao sem entrada interativa."""
+	sistema = SistemaPlaylist()
+	sistema.adicionar_musica("Exemplo 1", "Sistema", "Demo", 70)
+	sistema.adicionar_musica("Exemplo 2", "Sistema", "Demo", 110)
+	sistema.adicionar_musica("Exemplo 3", "Sistema", "Demo", 150)
+	sistema.adicionar_musica("Exemplo 4", "Sistema", "Demo", 180)
+	sistema.reconstruir_filas_humor()
+
+	for musica in sistema.biblioteca.iterar():
+		print(musica)
+
+	sistema.mostrar_estatisticas()
+	musica = sistema.reproduzir_proxima("Relaxar")
+	if musica is not None:
+		print("\nDemo reproduzida:")
+		print(musica)
+	print("\nHistorico apos demo:")
+	for musica in sistema.historico.iterar():
+		print(musica)
+
+
+def main() -> None:
+	"""Ponto de entrada do programa."""
 	if len(sys.argv) > 1 and sys.argv[1] == "--demo":
-		# Caminho rapido para validar a estrutura sem depender de input do usuario.
-		biblioteca = Biblioteca()
-		biblioteca.adicionar_musica("Exemplo", "Sistema", "Demo", 120)
-		for musica in biblioteca.iterar():
-			print(musica)
+		executar_demo()
 		return
 
 	try:
-		executar_menu_basico()
+		executar_menu()
 	except KeyboardInterrupt:
 		print("\nEncerrado pelo usuario.")
+
 
 if __name__ == "__main__":
 	main()
